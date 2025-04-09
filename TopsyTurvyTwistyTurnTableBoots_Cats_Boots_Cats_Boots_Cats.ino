@@ -1,5 +1,4 @@
-/*
-  Do a Doughnut!
+/*Do a Doughnut!
   By: Robert J. Guziec and Jacob JM Horstman
   Written: March 14, 2025
   Edited: April 9, 2025
