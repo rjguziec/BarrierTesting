@@ -14,11 +14,11 @@ void setup() {
   cli();
   // Configure TCCR0A, TCCR0B, OCR0A
   TCCR0A = 0xA1;
-  TCCR0B = 0x01;
+  TCCR0B = 0x02;
   TIMSK0 = 0x00;
   // Configure TCCR2A, TCCR2B, OCR2A
   TCCR2A = 0xA1;
-  TCCR2B = 0x01;
+  TCCR2B = 0x02;
   TIMSK2 = 0x00;
   // Set D3, D5, D6 as output
   DDRD = 0x68;
