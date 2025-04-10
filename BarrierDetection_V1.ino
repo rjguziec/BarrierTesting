@@ -2,6 +2,26 @@
    By: Sasha Dauz, Robert J. Guziec, Jacob JM Horstman
    Written: April 10, 2025
    I/O Pins:
+  A0: 
+  A1:
+  A2:
+  A3:
+  A4: Left Encoder
+  A5: Right Encoder
+  D0:
+  D1:
+  D2:
+  D3: Right Motor Forward 
+  D4: Left Motor Control 
+  D5: Left Motor Reverse Speed
+  D6: Left motor Forward Speed
+  D7:
+  D8:  
+  D9:
+  D10: 
+  D11: Right Motor Reverse Speed
+  D12: Left Whisker
+  D13: Right Whisker
 
    Possible issues I see:
    - Current logic is to hug the left wall. What happens when it encounters the first barrier?
@@ -167,4 +187,9 @@ ISR(ADC_vect) {
   // Save current state for the next interrupt
   leftA = leftB;
   rightA = rightB;
+}
+
+ISR(PCINT_vect){
+
+
 }
