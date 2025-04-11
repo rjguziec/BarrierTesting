@@ -1,137 +1,135 @@
 /* Barrier Detection v1.0
    By: Sasha Dauz, Robert J. Guziec, Jacob JM Horstman, and The Weirdo
    Written: April 10, 2025
+   Purpose:
+   - Navigate a maze using two motors and two tactile (whisker) sensors
+   - Reverse and turn upon obstacle detection
+   - Watchdog reset on corner trapping or system hang
+
    I/O Pins:
-  A0:
-  A1:
-  A2:
-  A3:
-  A4: 
-  A5: 
-  D0:
-  D1:
-  D2:
-  D3: Right Motor Forward
-  D4: Left Motor Control
-  D5: Left Motor Reverse Speed
-  D6: Left motor Forward Speed
-  D7:
-  D8:
-  D9:
-  D10:
-  D11: Right Motor Reverse Speed
-  D12: Left Whisker
-  D13: Right Whisker
-  To-Do:
-  - Fill in I/O pins in header
-  - Edit header
-  - Edit comments to be professional
+   A0 - 
+   A1 - 
+   A2 - 
+   A3 - 
+   A4 - 
+   A5 - 
+   D0 - 
+   D1 - 
+   D2 - 
+   D3 - Right Motor Forward (digital output)
+   D4 - Left Motor Direction/Control (digital output)
+   D5 - Left Motor Reverse PWM (Timer0, OCR0B)
+   D6 - Left Motor Forward PWM (Timer0, OCR0A)
+   D7 - 
+   D8 - 
+   D9 - 
+   D10 - 
+   D11 - Right Motor Reverse PWM (Timer2, OCR2A)
+   D12 - Left Whisker (digital input, pin change interrupt)
+   D13 - Right Whisker (digital input, pin change interrupt)
 */
 
-// *** *** *** *** GROSS GLOBAL VARIABLES *** *** *** ***
-//#include <avr/wdt.h>  // <-- ADD: Include watchdog library (not needed here)
+// *** *** *** *** GLOBAL VARIABLES *** *** *** ***
+#include <avr/wdt.h>  // Watchdog Timer library
 
 // Tactile sensors input pins
 volatile unsigned char barrierLeft = 1;  // Active-LOW
 volatile unsigned char barrierRight = 1; // Active-LOW
+unsigned char bumpLoopCount = 0;         // Counter for repeated bump triggers
 
-// *** *** *** *** SETUP *** *** *** ***
+// *** *** *** *** SETUP FUNCTION *** *** *** ***
 void setup() {
-  // Disable global interrupts
-  cli();
+  cli();  // Disable global interrupts
 
-  // Left Motor Setup
-  TCCR0A = 0xA1;    // Configure Timer 0 for PWM (Left motor)
-  TCCR0B = 0x01;
+  // Configure Timer0 (Left motor PWM)
+  TCCR0A = 0xA1;  // Phase Correct PWM, Clear OC0A on Compare Match
+  TCCR0B = 0x01;  // No prescaler
 
-  // Right Motor Setup
-  TCCR2A = 0xA1;    // Configure Timer 2 for PWM (Right motor)
-  TCCR2B = 0x01;
+  // Configure Timer2 (Right motor PWM)
+  TCCR2A = 0xA1;  // Phase Correct PWM, Clear OC2A on Compare Match
+  TCCR2B = 0x01;  // No prescaler
 
-  // Configure motor control pins as output
-  // [D3 & D11 Right] [D5 & D6 Left]
-  DDRD = 0x68;  // D3, D5, D6 as output for motors
-  DDRB = 0x08;  // D11 as output for motor control
+  // Configure motor pins as outputs
+  DDRD = 0x68;  // D3 (Right motor), D5, D6 (Left motor)
+  DDRB = 0x08;  // D11 (Right motor reverse)
 
-  // Enable internal pull-up on D12 and D13
-  PORTB |= 0x30;  // Pin D12 and D13
+  // Enable internal pull-ups on whisker input pins
+  PORTB |= 0x30;  // D12, D13
 
-  // Configure pin change interrupts
-  PCICR = 0x01;  // Enable PORT B
-  PCMSK0 = 0x30; // PORT B, D12 and D13
+  // Enable pin change interrupt on D12, D13 (PCINT4 and PCINT5)
+  PCICR = 0x01;   // Enable PCINT[7:0]
+  PCMSK0 = 0x30;  // Mask PCINT4 (D12), PCINT5 (D13)
 
-  // Enable global interrupts
-  sei();
+  sei();  // Enable global interrupts
 
-  // <-- ADD: Enable watchdog timer to reset if stalled
+  // Enable watchdog timer with 1 second timeout
   wdt_enable(WDTO_1S);
 }
 
+// Drive forward at calibrated speeds
 void moveForward() {
-  // Keep moving straight, the lower bound is 82.9 percent and upper is 93 percent
-  // left wheel is stronger than right wheel (LEFT BIG, RIGHT SMOL BOI)
-  OCR0A = 8;    // Left motor forward speed
-  OCR0B = 237;  // Left motor forward speed
-  OCR2A = 8;    // Right motor forward speed
-  OCR2B = 255;  // Right motor forward speed
+  OCR0A = 8;     // Left motor forward (OCR0A → D6)
+  OCR0B = 237;   // Left motor trim
+  OCR2A = 8;     // Right motor forward (OCR2A → D11)
+  OCR2B = 255;   // Right motor trim
 }
 
-// Move backward (whoa!)
+// Reverse briefly
 void moveBackward() {
-  // Reverse direction by reversing motor speeds
-  OCR0A = 237;  // Left motor backward speed
-  OCR0B = 8;    // Left motor backward speed
-  OCR2A = 255;  // Right motor backward speed
-  OCR2B = 8;    // Right motor backward speed
+  OCR0A = 237;
+  OCR0B = 8;
+  OCR2A = 255;
+  OCR2B = 8;
   _delay_ms(50);
 }
 
-// Turn left
+// Pivot left
 void turnLeft() {
-  // Left motor turns in reverse and right motor moves forward
-  OCR0A = 0;    // Left motor reverse speed
-  OCR0B = 200;  // Left motor reverse speed
-  OCR2A = 200;  // Right motor forward speed
-  OCR2B = 0;    // Right motor forward speed
+  OCR0A = 0;
+  OCR0B = 200;
+  OCR2A = 200;
+  OCR2B = 0;
   _delay_ms(50);
 }
 
-// Turn right
+// Pivot right
 void turnRight() {
-  // Right motor turns in reverse and right motor moves forward
-  OCR0A = 200;    // Left motor reverse speed
-  OCR0B = 0;  // Left motor reverse speed
-  OCR2A = 0;  // Right motor forward speed
-  OCR2B = 200;    // Right motor forward speed
+  OCR0A = 200;
+  OCR0B = 0;
+  OCR2A = 0;
+  OCR2B = 200;
   _delay_ms(50);
 }
 
-// *** *** *** *** LOOP *** *** *** ***
+// *** *** *** *** MAIN LOOP *** *** *** ***
 void loop() {
-  wdt_reset();    // <-- ADD: Feed the watchdog
+  wdt_reset();         // Feed the watchdog
+  bumpLoopCount = 0;   // Reset bump counter when moving freely
   moveForward();
 }
 
-// *** *** *** *** ISR's *** *** *** ***
-// PORT B - Whisker logic :D
+// *** *** *** *** ISR: Whisker Contact Detection *** *** ***
 ISR(PCINT0_vect) {
-  // Active-LOW Contact Switch
-  barrierLeft = (PINB & 0x20) >> 5;  // D13
-  barrierRight = (PINB & 0x10) >> 4; // D12
-  if (barrierRight == 0){
-    for(unsigned char i = 0; i < 8; i++){
-      moveBackward(); 
-    }
-    for( unsigned char j = 0; j < 13; j++){
-      turnRight();
-    }
+  barrierLeft = (PINB & 0x20) >> 5;   // D13
+  barrierRight = (PINB & 0x10) >> 4;  // D12
+
+  bumpLoopCount++;  // Count consecutive bumps
+
+  // Reset if bumping too often without escaping
+  if (bumpLoopCount > 6) {
+    wdt_enable(WDTO_15MS);  // Force quick reset
+    while (1);              // Wait for watchdog reset
   }
-  if (barrierLeft == 0){
-    for(unsigned char i = 0; i < 8; i++){
-      moveBackward(); 
-    }
-    for(unsigned char j = 0; j < 10; j++){
-      turnLeft();
-    }
+
+  // Handle right whisker hit
+  if (barrierRight == 0) {
+    for(unsigned char i = 0; i < 8; i++) moveBackward(); 
+    for(unsigned char j = 0; j < 13; j++) turnRight();
+  }
+
+  // Handle left whisker hit
+  if (barrierLeft == 0) {
+    for(unsigned char i = 0; i < 8; i++) moveBackward(); 
+    for(unsigned char j = 0; j < 10; j++) turnLeft();
   }
 }
