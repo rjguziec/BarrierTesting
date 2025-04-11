@@ -100,14 +100,6 @@ void moveForward() {
   OCR2B = 255;  // Right motor forward speed
 }
 
-// Turn left
-void turnLeft() {
-  // Left motor turns in reverse and right motor moves forward
-  OCR0A = 8;    // Left motor reverse speed
-  OCR0B = 200;  // Left motor reverse speed
-  OCR2A = 200;  // Right motor forward speed
-  OCR2B = 8;    // Right motor forward speed
-}
 
 // Move backward (whoa!)
 void moveBackward() {
@@ -116,7 +108,28 @@ void moveBackward() {
   OCR0B = 8;    // Left motor backward speed
   OCR2A = 255;  // Right motor backward speed
   OCR2B = 8;    // Right motor backward speed
-  }
+  _delay_ms(50);
+}
+
+// Turn left
+void turnLeft() {
+  // Left motor turns in reverse and right motor moves forward
+  OCR0A = 0;    // Left motor reverse speed
+  OCR0B = 200;  // Left motor reverse speed
+  OCR2A = 200;  // Right motor forward speed
+  OCR2B = 0;    // Right motor forward speed
+  _delay_ms(50);
+}
+
+// Turn right
+void turnRight() {
+  // Right motor turns in reverse and right motor moves forward
+  OCR0A = 200;    // Left motor reverse speed
+  OCR0B = 0;  // Left motor reverse speed
+  OCR2A = 0;  // Right motor forward speed
+  OCR2B = 200;    // Right motor forward speed
+  _delay_ms(50);
+}
 
 // Stop both motors (aw yea!)
 void stopMotors() {
@@ -124,7 +137,7 @@ void stopMotors() {
   OCR0B = 0;
   OCR2A = 0;
   OCR2B = 0;
-  }
+}
 
 // *** *** *** *** LOOP *** *** *** ***
 void loop() {
@@ -135,22 +148,35 @@ void loop() {
 
 // PORT B - ForwardToggle (Currently not in use)
 ISR(PCINT0_vect) {
-  forward = PINB & 0x01; // D8
-
-  // Read tactile sensor state
+  // Active-LOW Contact Switch
   barrierLeft = (PINB & 0x20) >> 5;  // D13
   barrierRight = (PINB & 0x10) >> 4; // D12
-
-
+  
+  if (barrierRight == 0){
+    for(unsigned char b = 0; b < 8; b++){
+      moveBackward(); 
+    }
+    for( unsigned char r = 0; r < 13; r++){
+      turnRight();
+    }
+  }
+  if (barrierLeft == 0){
+    for(unsigned char b = 0; b < 8; b++){
+      moveBackward(); 
+    }
+    for(unsigned char l = 0; l < 10; l++){
+      turnLeft();
+    }
+  }
   // Barrier logic
   // If a barrier is detected on either sensor
-  if ((barrierLeft == 0)/* || (barrierRight == 1)*/) {
+  /*if ((barrierRight == 0)/* || (barrierRight == 1)) {
     //stopMotors();      // Stop the motors
     //moveBackward();    // Move backward to avoid the barrier
     //turnLeft();        // Turn left
     //moveForward();     // Move forward
-  } 
-  Serial.println(barrierLeft);
+  }
+  */
 }
 
 // PORT C - Encoders and whiskers
@@ -167,8 +193,8 @@ ISR(PCINT1_vect) {
   }
   if (rightB < rightA) {
     counterRight++;
-   // Serial.print("Right: ");
-   // Serial.println(counterRight);
+    // Serial.print("Right: ");
+    // Serial.println(counterRight);
   }
   // Save current state for the next interrupt
   leftA = leftB;
