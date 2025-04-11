@@ -1,5 +1,5 @@
 /* Barrier Detection v1.0
-   By: Sasha Dauz, Robert J. Guziec, Jacob JM Horstman
+   By: Sasha Dauz, Robert J. Guziec, Jacob JM Horstman, and The Weirdo
    Written: April 10, 2025
    I/O Pins:
   A0:
@@ -27,32 +27,46 @@
   - Edit header
   - Edit comments to be professional
 */
+
 // *** *** *** *** GROSS GLOBAL VARIABLES *** *** *** ***
+#include <avr/wdt.h>  // <-- ADD: Include watchdog library
+
 // Tactile sensors input pins
 volatile unsigned char barrierLeft = 1;  // Active-LOW
 volatile unsigned char barrierRight = 1; // Active-LOW
+
 // *** *** *** *** SETUP *** *** *** ***
 void setup() {
   // Disable global interrupts
   cli();
+
   // Left Motor Setup
   TCCR0A = 0xA1;    // Configure Timer 0 for PWM (Left motor)
   TCCR0B = 0x01;
+
   // Right Motor Setup
   TCCR2A = 0xA1;    // Configure Timer 2 for PWM (Right motor)
   TCCR2B = 0x01;
+
   // Configure motor control pins as output
   // [D3 & D11 Right] [D5 & D6 Left]
   DDRD = 0x68;  // D3, D5, D6 as output for motors
   DDRB = 0x08;  // D11 as output for motor control
+
   // Enable internal pull-up on D12 and D13
   PORTB |= 0x30;  // Pin D12 and D13
+
   // Configure pin change interrupts
   PCICR = 0x01;  // Enable PORT B
   PCMSK0 = 0x30; // PORT B, D12 and D13
+
   // Enable global interrupts
   sei();
+
+  // <-- ADD: Enable watchdog timer to reset if stalled
+  wdt_enable(WDTO_1S);
 }
+
 void moveForward() {
   // Keep moving straight, the lower bound is 82.9 percent and upper is 93 percent
   // left wheel is stronger than right wheel (LEFT BIG, RIGHT SMOL BOI)
@@ -61,6 +75,7 @@ void moveForward() {
   OCR2A = 8;    // Right motor forward speed
   OCR2B = 255;  // Right motor forward speed
 }
+
 // Move backward (whoa!)
 void moveBackward() {
   // Reverse direction by reversing motor speeds
@@ -70,6 +85,7 @@ void moveBackward() {
   OCR2B = 8;    // Right motor backward speed
   _delay_ms(50);
 }
+
 // Turn left
 void turnLeft() {
   // Left motor turns in reverse and right motor moves forward
@@ -79,6 +95,7 @@ void turnLeft() {
   OCR2B = 0;    // Right motor forward speed
   _delay_ms(50);
 }
+
 // Turn right
 void turnRight() {
   // Right motor turns in reverse and right motor moves forward
@@ -88,10 +105,13 @@ void turnRight() {
   OCR2B = 200;    // Right motor forward speed
   _delay_ms(50);
 }
+
 // *** *** *** *** LOOP *** *** *** ***
 void loop() {
+  wdt_reset();    // <-- ADD: Feed the watchdog
   moveForward();
 }
+
 // *** *** *** *** ISR's *** *** *** ***
 // PORT B - Whisker logic :D
 ISR(PCINT0_vect) {
