@@ -29,7 +29,7 @@
 */
 
 // *** *** *** *** GROSS GLOBAL VARIABLES *** *** *** ***
-#include <avr/wdt.h>  // <-- ADD: Include watchdog library
+//#include <avr/wdt.h>  // <-- ADD: Include watchdog library (not needed here)
 
 // Tactile sensors input pins
 volatile unsigned char barrierLeft = 1;  // Active-LOW
